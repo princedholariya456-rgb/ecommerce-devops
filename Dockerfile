@@ -1,29 +1,39 @@
-# Use Maven-based image for building
-FROM maven:3.8.7-eclipse-temurin-17 AS builder
 
-# Set the working directory
+# ============================================
+# Stage 1: Build application using Maven + JDK 25
+# ============================================
+FROM maven:3.9.16-eclipse-temurin-25-noble AS builder
+
 WORKDIR /usr/src/app
 
-# Copy the pom.xml and fetch dependencies
-COPY pom.xml ./
+# Copy Maven configuration
+COPY pom.xml .
+
+# Download dependencies
 RUN mvn dependency:go-offline -B
 
 # Copy source code
 COPY src ./src
 
-# Build the WAR file
-RUN mvn clean package -DskipTests
+# Build WAR file
+RUN mvn clean package -DskipTests -B
 
-# Use Tomcat image for deployment
-FROM tomcat:9.0
 
-# Set working directory
+# ============================================
+# Stage 2: Deploy using Tomcat 9 + JDK 25
+# ============================================
+FROM tomcat:9.0.124-jdk25-temurin-noble
+
 WORKDIR /usr/local/tomcat/webapps/
 
-# Copy the WAR file from the builder stage
-COPY --from=builder /usr/src/app/target/*.war /usr/local/tomcat/webapps/ROOT.war
+# Remove default Tomcat applications
+RUN rm -rf /usr/local/tomcat/webapps/*
 
-# Expose Tomcat's default port
+# Copy generated WAR file
+COPY --from=builder /usr/src/app/target/EcommerceApp.war \
+    /usr/local/tomcat/webapps/ROOT.war
+
+# Expose Tomcat port
 EXPOSE 8080
 
 # Start Tomcat
